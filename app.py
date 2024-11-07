@@ -13,6 +13,8 @@ from model import prediction
 from sklearn.svm import SVR
 from dash import callback_context
 from dash import no_update
+import requests
+from datetime import datetime, timedelta
 
 
 def get_stock_price_fig(df):
@@ -70,23 +72,21 @@ app.layout = html.Div(
                 ],
                          className="date"),
                 html.Div([
-    html.Button("Stock Price", className="stock-btn", id="stock"),
-    html.Button("Indicators", className="indicators-btn", id="indicators"),
-    dcc.Input(id="n_days", type="text", placeholder="number of days"),
-    html.Button("Forecast", className="forecast-btn", id="forecast"),
-    # Dropdown for Technical Indicators
-    dcc.Dropdown(
-        id="indicator-dropdown",
-        options=[
-            {"label": "MACD", "value": "MACD"},
-            {"label": "RSI", "value": "RSI"},
-            {"label": "Bollinger Bands", "value": "Bollinger"}
-        ],
-        placeholder="Select an Indicator"
-    )
-], className="buttons"),
-
-                # here
+                    html.Button("Stock Price", className="stock-btn", id="stock"),
+                    html.Button("Indicators", className="indicators-btn", id="indicators"),
+                    dcc.Input(id="n_days", type="text", placeholder="number of days"),
+                    html.Button("Forecast", className="forecast-btn", id="forecast"),
+                    # Dropdown for Technical Indicators
+                    dcc.Dropdown(
+                        id="indicator-dropdown",
+                        options=[
+                            {"label": "MACD", "value": "MACD"},
+                            {"label": "RSI", "value": "RSI"},
+                            {"label": "Bollinger Bands", "value": "Bollinger"}
+                        ],
+                        placeholder="Select an Indicator"
+                    )
+                ], className="buttons"),
             ],
             className="nav"),
 
@@ -102,11 +102,17 @@ app.layout = html.Div(
                 html.Div(id="description", className="decription_ticker"),
                 html.Div([], id="graphs-content"),
                 html.Div([], id="main-content"),
-                html.Div([], id="forecast-content")
+                html.Div([], id="forecast-content"),
+                # News section
+                html.Div(id='news-container', children=[
+                    html.H2('Latest News'),
+                    html.Ul(id='news-list')  # Placeholder for news items
+                ]),
             ],
             className="content"),
     ],
     className="container")
+
 
 
 # callback for company info
@@ -328,6 +334,28 @@ def forecast(n, n_days, val):
 
     return [dcc.Graph(figure=fig)]
 
+def fetch_news(stock_symbol):
+    API_KEY = 'csmkjthr01qn12jeuc5gcsmkjthr01qn12jeuc60'  # Replace 'YOUR_API_KEY' with the actual key
+    yesterday = datetime.now() - timedelta(days=1)
+    today = datetime.now()
+    endpoint = f'https://finnhub.io/api/v1/company-news?symbol={stock_symbol}&from={yesterday:%Y-%m-%d}&to={today:%Y-%m-%d}&token={API_KEY}'
+
+    response = requests.get(endpoint)
+    if response.status_code == 200:
+        return response.json()  # Returns a list of news articles
+    else:
+        return []
+    
+@app.callback(
+    Output('news-list', 'children'),
+    [Input('dropdown_tickers', 'value')]  # Assuming this is your input component for stock symbols
+)
+def update_news(ticker):
+    if ticker:
+        news_items = fetch_news(ticker)
+        news_elements = [html.Li(children=[html.A(news['headline'], href=news['url'], target='_blank')]) for news in news_items]
+        return news_elements
+    return [html.Li('Enter a valid stock symbol to see news.')]
 
 
 if __name__ == '__main__':
