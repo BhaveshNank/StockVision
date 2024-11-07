@@ -11,6 +11,8 @@ import plotly.express as px
 # model
 from model import prediction
 from sklearn.svm import SVR
+from dash import callback_context
+from dash import no_update
 
 
 def get_stock_price_fig(df):
@@ -68,18 +70,22 @@ app.layout = html.Div(
                 ],
                          className="date"),
                 html.Div([
-                    html.Button(
-                        "Stock Price", className="stock-btn", id="stock"),
-                    html.Button("Indicators",
-                                className="indicators-btn",
-                                id="indicators"),
-                    dcc.Input(id="n_days",
-                              type="text",
-                              placeholder="number of days"),
-                    html.Button(
-                        "Forecast", className="forecast-btn", id="forecast")
-                ],
-                         className="buttons"),
+    html.Button("Stock Price", className="stock-btn", id="stock"),
+    html.Button("Indicators", className="indicators-btn", id="indicators"),
+    dcc.Input(id="n_days", type="text", placeholder="number of days"),
+    html.Button("Forecast", className="forecast-btn", id="forecast"),
+    # Dropdown for Technical Indicators
+    dcc.Dropdown(
+        id="indicator-dropdown",
+        options=[
+            {"label": "MACD", "value": "MACD"},
+            {"label": "RSI", "value": "RSI"},
+            {"label": "Bollinger Bands", "value": "Bollinger"}
+        ],
+        placeholder="Select an Indicator"
+    )
+], className="buttons"),
+
                 # here
             ],
             className="nav"),
@@ -173,41 +179,114 @@ def stock_price(n, start_date, end_date, val):
     return [dcc.Graph(figure=fig)]
 
 
+# New unified indicator callback
+# Unified indicator callback
 
-@app.callback([Output("main-content", "children")], [
-    Input("indicators", "n_clicks"),
-    Input('my-date-picker-range', 'start_date'),
-    Input('my-date-picker-range', 'end_date')
-], [State("dropdown_tickers", "value")])
-def indicators(n, start_date, end_date, val):
-    if n is None:
-        return [""]
-    
-    if val is None:
-        return ["Please enter a stock code."]
-    
+
+def calculate_bollinger_bands(df):
+    df['MA'] = df['Close'].rolling(window=20).mean()
+    df['STD'] = df['Close'].rolling(window=20).std()
+    df['Upper'] = df['MA'] + (df['STD'] * 2)
+    df['Lower'] = df['MA'] - (df['STD'] * 2)
+    return df
+
+def create_bollinger_figure(df, val):
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=df.index, y=df['Upper'], mode='lines', name='Upper Band'))
+    fig.add_trace(go.Scatter(x=df.index, y=df['MA'], mode='lines', name='Moving Average'))
+    fig.add_trace(go.Scatter(x=df.index, y=df['Lower'], mode='lines', name='Lower Band'))
+    fig.add_trace(go.Scatter(x=df.index, y=df['Close'], mode='lines', name='Close', opacity=0.5))
+    fig.update_layout(title=f"Bollinger Bands for {val}", xaxis_title="Date", yaxis_title="Price")
+    return fig
+
+def handle_indicator_button(n_clicks, val, start_date, end_date):
+    # Placeholder function to simulate handling of the indicators button
+    if not val:
+        return "Please enter a stock code to get indicators."
     try:
-        df_more = yf.download(val, start=start_date, end=end_date) if start_date else yf.download(val)
-        
-        # Flatten MultiIndex columns
-        if isinstance(df_more.columns, pd.MultiIndex):
-            df_more.columns = df_more.columns.get_level_values(0)
-        
-        # Check if 'Close' is in the DataFrame
-        if 'Close' not in df_more.columns:
-            return ["No indicator data available for the selected date range."]
-        
-        df_more.reset_index(inplace=True)
-        fig = get_more(df_more)
-        if fig is None:
-            return ["Could not compute indicators. Ensure the stock code is correct."]
+        df = yf.download(val, start=start_date, end=end_date)
+        if df.empty:
+            return "No data available for this ticker in the selected date range."
+        # Example of what might be done; really depends on your application needs
+        df = calculate_macd(df)  # Assuming calculate_macd uses just df
+        fig = create_macd_figure(df, val)
+        return [dcc.Graph(figure=fig)]
     except Exception as e:
-        return [f"Error generating indicators: {e}"]
-
-    return [dcc.Graph(figure=fig)]
+        return f"Error processing indicators: {e}"
 
 
+@app.callback(
+    Output("main-content", "children"),
+    [Input("indicator-dropdown", "value"), Input("indicators", "n_clicks")],
+    [State("dropdown_tickers", "value"), State('my-date-picker-range', 'start_date'), State('my-date-picker-range', 'end_date')]
+)
+def update_main_content(indicator, n_clicks, val, start_date, end_date):
+    ctx = callback_context
+    if not ctx.triggered:
+        return no_update
+    triggered = ctx.triggered[0]['prop_id'].split('.')[0]
 
+    if triggered == "indicator-dropdown" and indicator:
+        if not val:
+            return "Please enter a valid stock symbol."
+
+        try:
+            df = yf.download(val, start=start_date, end=end_date)
+            if df.empty:
+                return "No data available for this ticker in the selected date range."
+        except Exception as e:
+            return f"Error downloading data: {e}"
+
+        if 'Close' in df.columns:
+            if indicator == "MACD":
+                df = calculate_macd(df)
+                return [dcc.Graph(figure=create_macd_figure(df, val))]
+            elif indicator == "RSI":
+                df = calculate_rsi(df)
+                return [dcc.Graph(figure=create_rsi_figure(df, val))]
+            elif indicator == "Bollinger":
+                df = calculate_bollinger_bands(df)
+                return [dcc.Graph(figure=create_bollinger_figure(df, val))]
+        else:
+            return "Required data columns missing."
+    elif triggered == "indicators" and n_clicks:
+        # This function should be defined to handle what happens when 'indicators' button is clicked
+        return handle_indicator_button(n_clicks, val, start_date, end_date)
+
+    return no_update
+
+
+
+
+
+# Example helper functions
+def calculate_macd(df):
+    df['12_EMA'] = df['Close'].ewm(span=12, adjust=False).mean()
+    df['26_EMA'] = df['Close'].ewm(span=26, adjust=False).mean()
+    df['MACD'] = df['12_EMA'] - df['26_EMA']
+    df['Signal_Line'] = df['MACD'].ewm(span=9, adjust=False).mean()
+    return df
+
+def create_macd_figure(df, val):
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=df.index, y=df['MACD'], mode='lines', name='MACD'))
+    fig.add_trace(go.Scatter(x=df.index, y=df['Signal_Line'], mode='lines', name='Signal Line'))
+    fig.update_layout(title=f"MACD for {val}", xaxis_title="Date", yaxis_title="MACD Value")
+    return fig
+
+def calculate_rsi(df):
+    delta = df['Close'].diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+    rs = gain / loss
+    df['RSI'] = 100 - (100 / (1 + rs))
+    return df
+
+def create_rsi_figure(df, val):
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=df.index, y=df['RSI'], mode='lines', name='RSI'))
+    fig.update_layout(title=f"RSI for {val}", xaxis_title="Date", yaxis_title="RSI Value", yaxis=dict(range=[0, 100]))
+    return fig
 
 
 @app.callback([Output("forecast-content", "children")],
