@@ -15,7 +15,10 @@ from dash import callback_context
 from dash import no_update
 import requests
 from datetime import datetime, timedelta
+from dash import Dash, html, dcc, Input, Output
+from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
+app = Dash(__name__)
 
 def get_stock_price_fig(df):
     # Check if the 'Close' and 'Open' columns exist
@@ -47,121 +50,172 @@ app = dash.Dash(
         "https://fonts.googleapis.com/css2?family=Roboto&display=swap"
     ])
 server = app.server
+
+def analyze_sentiment(headlines):
+    analyzer = SentimentIntensityAnalyzer()
+    return [(headline, analyzer.polarity_scores(headline)['compound']) for headline in headlines]
+
 # html layout of site
 app.layout = html.Div(
     [
+        # Left Sidebar (for input controls)
         html.Div(
             [
-                # Navigation
                 html.P("Welcome to the Stock Dash App!", className="start"),
+
+                # Input stock code and Fetch News button
                 html.Div([
-                    html.P("Input stock code: "),
-                    html.Div([
-                        dcc.Input(id="dropdown_tickers", type="text"),
-                        html.Button("Submit", id='submit'),
-                    ],
-                             className="form")
-                ],
-                         className="input-place"),
-                html.Div([
-                    dcc.DatePickerRange(id='my-date-picker-range',
-                                        min_date_allowed=dt(1995, 8, 5),
-                                        max_date_allowed=dt.now(),
-                                        initial_visible_month=dt.now(),
-                                        end_date=dt.now().date()),
-                ],
-                         className="date"),
+                    html.Label("Input stock code:"),
+                    dcc.Input(id="stock-input", type="text", placeholder="Enter a stock symbol..."),
+                    html.Button("Fetch News", id="fetch-news", n_clicks=0, style={'margin-left': '5px'}),
+                ], className="form", style={'margin-bottom': '20px'}),
+
+                # Date Picker
+                html.Label("Select Date Range:"),
+                dcc.DatePickerRange(
+                    id='my-date-picker-range',
+                    min_date_allowed=dt(1995, 8, 5),
+                    max_date_allowed=dt.now(),
+                    initial_visible_month=dt.now(),
+                    end_date=dt.now().date(),
+                    style={'margin-bottom': '20px'}
+                ),
+
+                # Stock Data and Indicators Buttons
                 html.Div([
                     html.Button("Stock Price", className="stock-btn", id="stock"),
-                    html.Button("Indicators", className="indicators-btn", id="indicators"),
-                    dcc.Input(id="n_days", type="text", placeholder="number of days"),
-                    html.Button("Forecast", className="forecast-btn", id="forecast"),
-                    # Dropdown for Technical Indicators
-                    dcc.Dropdown(
-                        id="indicator-dropdown",
-                        options=[
-                            {"label": "MACD", "value": "MACD"},
-                            {"label": "RSI", "value": "RSI"},
-                            {"label": "Bollinger Bands", "value": "Bollinger"}
-                        ],
-                        placeholder="Select an Indicator"
-                    )
-                ], className="buttons"),
-            ],
-            className="nav"),
+                    html.Button("Indicators", className="indicators-btn", id="indicators", style={'margin-left': '10px'}),
+                ], style={'display': 'flex', 'margin-bottom': '20px'}),
 
-        # content
+                # Forecast section
+                html.Div([
+                    dcc.Input(id="n_days", type="text", placeholder="Number of forecast days", style={'width': '150px'}),
+                    html.Button("Forecast", className="forecast-btn", id="forecast", style={'margin-left': '10px'}),
+                ], style={'margin-bottom': '20px'}),
+
+                # Technical Indicator Dropdown
+                dcc.Dropdown(
+                    id="indicator-dropdown",
+                    options=[
+                        {"label": "MACD", "value": "MACD"},
+                        {"label": "RSI", "value": "RSI"},
+                        {"label": "Bollinger Bands", "value": "Bollinger"}
+                    ],
+                    placeholder="Select an Indicator",
+                    style={'margin-bottom': '20px'}
+                ),
+            ],
+            className="sidebar",  # Apply CSS class for styling
+            style={'width': '25%', 'padding': '20px', 'background-color': '#f7f7f7'}
+        ),
+
+        # Main Content Area (for displaying outputs)
         html.Div(
             [
-                html.Div(
-                    [  # header
-                        html.Img(id="logo"),
-                        html.P(id="ticker")
-                    ],
-                    className="header"),
-                html.Div(id="description", className="decription_ticker"),
-                html.Div([], id="graphs-content"),
-                html.Div([], id="main-content"),
-                html.Div([], id="forecast-content"),
-                # News section
+                # Header with logo and ticker display
+                html.Div([
+                    html.Img(id="logo", style={'height': '50px'}),
+                    html.P(id="ticker", style={'font-size': '24px', 'margin-top': '10px'}),
+                ], className="header", style={'display': 'flex', 'align-items': 'center', 'margin-bottom': '20px'}),
+
+                # Description section
+                html.Div(id="description", className="description", style={'margin-bottom': '20px'}),
+
+                # Graphs for stock price and indicators
+                html.Div(id="graphs-content", className="graph-section", style={'margin-bottom': '20px'}),
+
+                # Technical indicators or forecast data
+                html.Div(id="main-content", className="indicator-section", style={'margin-bottom': '20px'}),
+                html.Div(id="forecast-content", className="forecast-section", style={'margin-bottom': '20px'}),
+
+                # News and sentiment analysis
                 html.Div(id='news-container', children=[
                     html.H2('Latest News'),
-                    html.Ul(id='news-list')  # Placeholder for news items
-                ]),
+                    html.Ul(id='news-list')
+                ], className="news-section", style={'margin-bottom': '20px'}),
+
+                html.Div(id='sentiment-output', children=[
+                    html.H2('News Sentiment Analysis'),
+                    html.Div(id='sentiment-details')
+                ], className="sentiment-section")
             ],
-            className="content"),
+            className="main-content",  # Apply CSS class for styling
+            style={'width': '70%', 'padding': '20px'}
+        ),
     ],
-    className="container")
+    className="container",
+    style={'display': 'flex', 'justify-content': 'space-between'}
+)
+
+
+
 
 
 
 # callback for company info
-@app.callback([
-    Output("description", "children"),
-    Output("logo", "src"),
-    Output("ticker", "children"),
-    Output("stock", "n_clicks"),
-    Output("indicators", "n_clicks"),
-    Output("forecast", "n_clicks")
-], [Input("submit", "n_clicks")], 
-   [State("dropdown_tickers", "value")]
+@app.callback(
+    [
+        Output("description", "children"),
+        Output("logo", "src"),
+        Output("ticker", "children"),
+        Output("stock", "n_clicks"),
+        Output("indicators", "n_clicks"),
+        Output("forecast", "n_clicks")
+    ],
+    [Input("stock-input", "value")]
 )
-def update_data(n, val):  # input parameter(s)
-    if n is None:
+def update_data(stock_code):
+    if stock_code is None:
         return (
-            "Hey there! Please enter a legitimate stock code to get details.",
+            "Please enter a legitimate stock code to get details.",
             "https://melmagazine.com/wp-content/uploads/2019/07/Screen-Shot-2019-07-31-at-5.47.12-PM.png",
             "Stonks",
             None, None, None
         )
     else:
-        if val is None:
-            raise PreventUpdate
-        else:
-            ticker = yf.Ticker(val)
+        try:
+            ticker = yf.Ticker(stock_code)
             inf = ticker.info
             df = pd.DataFrame().from_dict(inf, orient="index").T
 
-            # Check if each field exists, provide default values if not
             logo_url = df['logo_url'].values[0] if 'logo_url' in df.columns else "https://melmagazine.com/wp-content/uploads/2019/07/Screen-Shot-2019-07-31-at-5.47.12-PM.png"
             short_name = df['shortName'].values[0] if 'shortName' in df.columns else "Unknown Stock"
             long_business_summary = df['longBusinessSummary'].values[0] if 'longBusinessSummary' in df.columns else "No description available."
 
             return long_business_summary, logo_url, short_name, None, None, None
 
-@app.callback([
+        except yf.YFException as e:
+            return (
+                "Stock data not found. Please check the stock symbol.",
+                "https://melmagazine.com/wp-content/uploads/2019/07/Screen-Shot-2019-07-31-at-5.47.12-PM.png",
+                "Unknown Stock",
+                None, None, None
+            )
+        except Exception as e:
+            return (
+                f"An error occurred: {e}",
+                "https://melmagazine.com/wp-content/uploads/2019/07/Screen-Shot-2019-07-31-at-5.47.12-PM.png",
+                "Unknown Stock",
+                None, None, None
+            )
+
+
+@app.callback(
     Output("graphs-content", "children"),
-], [
-    Input("stock", "n_clicks"),
-    Input('my-date-picker-range', 'start_date'),
-    Input('my-date-picker-range', 'end_date')
-], [State("dropdown_tickers", "value")])
+    [Input("stock", "n_clicks"),
+     Input('my-date-picker-range', 'start_date'),
+     Input('my-date-picker-range', 'end_date')],
+    [State("stock-input", "value")]
+)
 def stock_price(n, start_date, end_date, val):
     if n is None:
         return [""]
 
     if val is None:
         return ["Please enter a stock code."]
+    
+    # Fetch stock data logic here
+
 
     try:
         # Fetch the stock data
@@ -224,7 +278,7 @@ def handle_indicator_button(n_clicks, val, start_date, end_date):
 @app.callback(
     Output("main-content", "children"),
     [Input("indicator-dropdown", "value"), Input("indicators", "n_clicks")],
-    [State("dropdown_tickers", "value"), State('my-date-picker-range', 'start_date'), State('my-date-picker-range', 'end_date')]
+    [State("stock-input", "value"), State('my-date-picker-range', 'start_date'), State('my-date-picker-range', 'end_date')]
 )
 def update_main_content(indicator, n_clicks, val, start_date, end_date):
     ctx = callback_context
@@ -262,9 +316,6 @@ def update_main_content(indicator, n_clicks, val, start_date, end_date):
     return no_update
 
 
-
-
-
 # Example helper functions
 def calculate_macd(df):
     df['12_EMA'] = df['Close'].ewm(span=12, adjust=False).mean()
@@ -295,10 +346,11 @@ def create_rsi_figure(df, val):
     return fig
 
 
-@app.callback([Output("forecast-content", "children")],
-              [Input("forecast", "n_clicks")],
-              [State("n_days", "value"),
-               State("dropdown_tickers", "value")])
+@app.callback(
+    [Output("forecast-content", "children")],
+    [Input("forecast", "n_clicks")],
+    [State("n_days", "value"), State("stock-input", "value")]
+)
 def forecast(n, n_days, val):
     if n is None:
         return [""]
@@ -346,16 +398,36 @@ def fetch_news(stock_symbol):
     else:
         return []
     
+# Combined Callback for News and Sentiment Analysis (MERGED CALLBACK)
 @app.callback(
     Output('news-list', 'children'),
-    [Input('dropdown_tickers', 'value')]  # Assuming this is your input component for stock symbols
+    [
+        Input('fetch-news', 'n_clicks'),  # Using 'fetch-news' button to trigger news fetch
+    ],
+    [State('stock-input', 'value')],
+    prevent_initial_call=True
 )
-def update_news(ticker):
-    if ticker:
-        news_items = fetch_news(ticker)
-        news_elements = [html.Li(children=[html.A(news['headline'], href=news['url'], target='_blank')]) for news in news_items]
-        return news_elements
-    return [html.Li('Enter a valid stock symbol to see news.')]
+def update_news_combined(n_clicks, stock_symbol):
+    # Use the value in stock-input directly as the ticker
+    ticker = stock_symbol
+
+    if not ticker:
+        return [html.Li("Please enter a stock symbol first.")]
+
+    # Fetch news from the API
+    news_items = fetch_news(ticker)
+    if not news_items:
+        return [html.Li('No news found for this stock symbol.')]
+
+    # Perform sentiment analysis
+    analyzed_headlines = analyze_sentiment([news['headline'] for news in news_items])
+    
+    # Generate list items with sentiment
+    news_elements = [
+        html.Li(f"{headline}: {'Positive' if score > 0 else 'Negative' if score < 0 else 'Neutral'} (Score: {score})")
+        for headline, score in analyzed_headlines
+    ]
+    return news_elements
 
 
 if __name__ == '__main__':
