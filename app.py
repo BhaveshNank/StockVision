@@ -400,34 +400,47 @@ def fetch_news(stock_symbol):
     
 # Combined Callback for News and Sentiment Analysis (MERGED CALLBACK)
 @app.callback(
-    Output('news-list', 'children'),
-    [
-        Input('fetch-news', 'n_clicks'),  # Using 'fetch-news' button to trigger news fetch
-    ],
+    [Output('news-list', 'children'),
+     Output('sentiment-details', 'children')],  # Added output for sentiment details
+    [Input('fetch-news', 'n_clicks')],
     [State('stock-input', 'value')],
     prevent_initial_call=True
 )
 def update_news_combined(n_clicks, stock_symbol):
-    # Use the value in stock-input directly as the ticker
     ticker = stock_symbol
 
     if not ticker:
-        return [html.Li("Please enter a stock symbol first.")]
+        return [html.Li("Please enter a stock symbol first.")], ""
 
     # Fetch news from the API
     news_items = fetch_news(ticker)
     if not news_items:
-        return [html.Li('No news found for this stock symbol.')]
+        return [html.Li('No news found for this stock symbol.')], "No sentiment data available."
 
     # Perform sentiment analysis
     analyzed_headlines = analyze_sentiment([news['headline'] for news in news_items])
     
-    # Generate list items with sentiment
+    # Generate list items with sentiment for news display
     news_elements = [
         html.Li(f"{headline}: {'Positive' if score > 0 else 'Negative' if score < 0 else 'Neutral'} (Score: {score})")
         for headline, score in analyzed_headlines
     ]
-    return news_elements
+
+    # Calculate overall sentiment summary
+    positive = sum(1 for _, score in analyzed_headlines if score > 0)
+    neutral = sum(1 for _, score in analyzed_headlines if score == 0)
+    negative = sum(1 for _, score in analyzed_headlines if score < 0)
+    average_score = sum(score for _, score in analyzed_headlines) / len(analyzed_headlines)
+
+    sentiment_summary = html.Div([
+        html.P(f"Overall Sentiment Summary:"),
+        html.P(f"Positive Articles: {positive}"),
+        html.P(f"Neutral Articles: {neutral}"),
+        html.P(f"Negative Articles: {negative}"),
+        html.P(f"Average Sentiment Score: {average_score:.2f}")
+    ])
+
+    return news_elements, sentiment_summary
 
 
 if __name__ == '__main__':
