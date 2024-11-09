@@ -53,8 +53,61 @@ server = app.server
 
 def analyze_sentiment(headlines):
     analyzer = SentimentIntensityAnalyzer()
-    return [(headline, analyzer.polarity_scores(headline)['compound']) for headline in headlines]
+    scores = [analyzer.polarity_scores(headline)['compound'] for headline in headlines]
+    avg_score = sum(scores) / len(scores) if scores else 0
+    return avg_score
 
+def create_sentiment_gauge(score):
+    if score is None:
+        return go.Figure()  # Return an empty figure if the score is None
+
+    gauge = go.Figure(go.Indicator(
+        mode="gauge+number",
+        value=score,
+        title={'text': "Sentiment Analysis"},
+        gauge={'axis': {'range': [-1, 1]},
+               'steps': [
+                   {'range': [-1, -0.3], 'color': "red"},
+                   {'range': [-0.3, 0.3], 'color': "yellow"},
+                   {'range': [0.3, 1], 'color': "green"}],
+               'bar': {'color': "black"}}
+    ))
+    return gauge
+
+
+# Callback for News and Sentiment Analysis with style update
+@app.callback(
+    [Output('news-list', 'children'),
+     Output('sentiment-gauge', 'figure'),
+     Output('sentiment-gauge', 'style')],  # Update style to show gauge
+    [Input('fetch-news', 'n_clicks')],
+    [State('stock-input', 'value')],
+    prevent_initial_call=True
+)
+def update_news_and_sentiment_gauge(n_clicks, stock_symbol):
+    if not stock_symbol:
+        return [html.Li("Please enter a stock symbol first.")], go.Figure(), {'display': 'none'}
+
+    # Fetch news from the API
+    news_items = fetch_news(stock_symbol)
+    if not news_items:
+        return [html.Li('No news found for this stock symbol.')], go.Figure(), {'display': 'none'}
+
+    # Perform sentiment analysis on headlines
+    average_sentiment = analyze_sentiment([news['headline'] for news in news_items])
+
+    # Create list of news items with clickable links
+    news_elements = [
+        html.Li([
+            html.A(news['headline'], href=news['url'], target="_blank")
+        ]) for news in news_items
+    ]
+
+    # Create the sentiment gauge figure
+    fig = create_sentiment_gauge(average_sentiment)
+
+    # Set the style to display the gauge now
+    return news_elements, fig, {'display': 'block'}
 # html layout of site
 app.layout = html.Div(
     [
@@ -105,7 +158,7 @@ app.layout = html.Div(
                     style={'margin-bottom': '20px'}
                 ),
             ],
-            className="sidebar",  # Apply CSS class for styling
+            className="sidebar",
             style={'width': '25%', 'padding': '20px', 'background-color': '#f7f7f7'}
         ),
 
@@ -134,18 +187,21 @@ app.layout = html.Div(
                     html.Ul(id='news-list')
                 ], className="news-section", style={'margin-bottom': '20px'}),
 
+                # Updated Sentiment Analysis with gauge, hidden initially
                 html.Div(id='sentiment-output', children=[
                     html.H2('News Sentiment Analysis'),
-                    html.Div(id='sentiment-details')
+                    dcc.Graph(id='sentiment-gauge', style={'display': 'none'})  # Hide gauge initially
                 ], className="sentiment-section")
             ],
-            className="main-content",  # Apply CSS class for styling
+            className="main-content",
             style={'width': '70%', 'padding': '20px'}
         ),
     ],
     className="container",
     style={'display': 'flex', 'justify-content': 'space-between'}
 )
+
+
 
 
 
@@ -184,20 +240,15 @@ def update_data(stock_code):
 
             return long_business_summary, logo_url, short_name, None, None, None
 
-        except yf.YFException as e:
+        except Exception as e:
+            # Handling any exception and providing feedback to the user
             return (
                 "Stock data not found. Please check the stock symbol.",
                 "https://melmagazine.com/wp-content/uploads/2019/07/Screen-Shot-2019-07-31-at-5.47.12-PM.png",
                 "Unknown Stock",
                 None, None, None
             )
-        except Exception as e:
-            return (
-                f"An error occurred: {e}",
-                "https://melmagazine.com/wp-content/uploads/2019/07/Screen-Shot-2019-07-31-at-5.47.12-PM.png",
-                "Unknown Stock",
-                None, None, None
-            )
+
 
 
 @app.callback(
@@ -398,50 +449,6 @@ def fetch_news(stock_symbol):
     else:
         return []
     
-# Combined Callback for News and Sentiment Analysis (MERGED CALLBACK)
-@app.callback(
-    [Output('news-list', 'children'),
-     Output('sentiment-details', 'children')],  # Added output for sentiment details
-    [Input('fetch-news', 'n_clicks')],
-    [State('stock-input', 'value')],
-    prevent_initial_call=True
-)
-def update_news_combined(n_clicks, stock_symbol):
-    ticker = stock_symbol
-
-    if not ticker:
-        return [html.Li("Please enter a stock symbol first.")], ""
-
-    # Fetch news from the API
-    news_items = fetch_news(ticker)
-    if not news_items:
-        return [html.Li('No news found for this stock symbol.')], "No sentiment data available."
-
-    # Perform sentiment analysis
-    analyzed_headlines = analyze_sentiment([news['headline'] for news in news_items])
-    
-    # Generate list items with sentiment for news display
-    news_elements = [
-        html.Li(f"{headline}: {'Positive' if score > 0 else 'Negative' if score < 0 else 'Neutral'} (Score: {score})")
-        for headline, score in analyzed_headlines
-    ]
-
-    # Calculate overall sentiment summary
-    positive = sum(1 for _, score in analyzed_headlines if score > 0)
-    neutral = sum(1 for _, score in analyzed_headlines if score == 0)
-    negative = sum(1 for _, score in analyzed_headlines if score < 0)
-    average_score = sum(score for _, score in analyzed_headlines) / len(analyzed_headlines)
-
-    sentiment_summary = html.Div([
-        html.P(f"Overall Sentiment Summary:"),
-        html.P(f"Positive Articles: {positive}"),
-        html.P(f"Neutral Articles: {neutral}"),
-        html.P(f"Negative Articles: {negative}"),
-        html.P(f"Average Sentiment Score: {average_score:.2f}")
-    ])
-
-    return news_elements, sentiment_summary
-
 
 if __name__ == '__main__':
     app.run_server(debug=True)
