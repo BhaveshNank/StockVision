@@ -59,28 +59,35 @@ def analyze_sentiment(headlines):
     return avg_score
 
 def create_sentiment_gauge(score):
-    if score is None:
-        return go.Figure()  # Return an empty figure if the score is None
+    # Ensure the score is valid
+    if score is None or not isinstance(score, (int, float)) or not (-1 <= score <= 1):
+        # If invalid, return an empty placeholder figure
+        return go.Figure(layout={"xaxis": {"visible": False}, "yaxis": {"visible": False}})
 
+    # Generate the gauge
     gauge = go.Figure(go.Indicator(
         mode="gauge+number",
         value=score,
         title={'text': "Sentiment Analysis"},
-        gauge={'axis': {'range': [-1, 1]},
-               'steps': [
-                   {'range': [-1, -0.3], 'color': "red"},
-                   {'range': [-0.3, 0.3], 'color': "yellow"},
-                   {'range': [0.3, 1], 'color': "green"}],
-               'bar': {'color': "black"}}
+        gauge={
+            'axis': {'range': [-1, 1]},
+            'steps': [
+                {'range': [-1, -0.3], 'color': "red"},
+                {'range': [-0.3, 0.3], 'color': "yellow"},
+                {'range': [0.3, 1], 'color': "green"}
+            ],
+            'bar': {'color': "black"}
+        }
     ))
     return gauge
+
 
 
 # Callback for News and Sentiment Analysis with style update
 @app.callback(
     [Output('news-list', 'children'),
      Output('sentiment-gauge', 'figure'),
-     Output('sentiment-gauge', 'style')],  # Update style to show gauge
+     Output('sentiment-gauge', 'style')],
     [Input('fetch-news', 'n_clicks')],
     [State('stock-input', 'value')],
     prevent_initial_call=True
@@ -95,32 +102,44 @@ def update_news_and_sentiment_gauge(n_clicks, stock_symbol):
         return [html.Li('No news found for this stock symbol.')], go.Figure(), {'display': 'none'}
 
     # Perform sentiment analysis on headlines
-    average_sentiment = analyze_sentiment([news['headline'] for news in news_items])
+    headlines = [news['headline'] for news in news_items if news.get('headline')]
+    average_sentiment = analyze_sentiment(headlines)
 
     # Create list of news items with clickable links
     news_elements = [
         html.Li([
             html.A(news['headline'], href=news['url'], target="_blank")
-        ]) for news in news_items
+        ]) for news in news_items if news.get('headline') and news.get('url')
     ]
 
-    # Create the sentiment gauge figure
+    # Generate the sentiment gauge
     fig = create_sentiment_gauge(average_sentiment)
 
-    # Set the style to display the gauge now
-    if average_sentiment != 0:  # If sentiment analysis is meaningful
-        return news_elements, fig, {"display": "block"}
-    else:  # No valid sentiment to show
-        return news_elements, go.Figure(), {"display": "none"}
+    # Toggle visibility based on sentiment score
+    if average_sentiment != 0:
+        return news_elements, fig, {'display': 'block'}
+    else:
+        return news_elements, go.Figure(), {'display': 'none'}
+
+
 
 # html layout of site
-# Updated app.layout code
+
 app.layout = dbc.Container(
     [
         # Title Row
-        dbc.Row(
-            dbc.Col(html.H1("Stock Dashboard App", className="text-center text-light mb-4"), width=12)
-        ),
+
+            dbc.Row(
+                dbc.Col(
+                    html.H1(
+                        "Stock Dashboard App",
+                        className="text-center mb-4",
+                        style={"color": "white"}  # Change text color to white
+                    ),
+                    width=12
+                )
+            ),
+
         
         # Input Controls (Sidebar)
         dbc.Row(
@@ -130,59 +149,90 @@ app.layout = dbc.Container(
                     [
                         html.P("Welcome to the Stock Dash App!", className="text-light mb-4"),
                         
-                        # Input Stock Code
-                        dbc.Label("Input Stock Code:", className="text-light"),
-                        dcc.Input(
-                            id="stock-input",
-                            type="text",
-                            placeholder="Enter a stock symbol...",
-                            className="form-control mb-3"
-                        ),
-                        
-                        # Fetch News Button
-                        html.Button("Fetch News", id="fetch-news", n_clicks=0, className="btn btn-info mb-3"),
-                        
-                        # Date Picker
-                        dbc.Label("Select Date Range:", className="text-light"),
-                        dcc.DatePickerRange(
-                            id='my-date-picker-range',
-                            min_date_allowed=dt(1995, 8, 5),
-                            max_date_allowed=dt.now(),
-                            initial_visible_month=dt.now(),
-                            end_date=dt.now().date(),
-                            className="mb-3"
-                        ),
-                        
-                        # Buttons for Stock Price and Indicators
-                        html.Div(
+                        # Input Stock Code and Fetch News Button
+                        dbc.Row(
                             [
-                                html.Button("Stock Price", className="btn btn-primary mr-2", id="stock"),
-                                html.Button("Indicators", className="btn btn-warning", id="indicators"),
+                                dbc.Col(
+                                    dcc.Input(
+                                        id="stock-input",
+                                        type="text",
+                                        placeholder="Enter a stock symbol...",
+                                        className="form-control"
+                                    ),
+                                    width=True,
+                                ),
+                                dbc.Col(
+                                    html.Button("Fetch News", id="fetch-news", n_clicks=0, className="btn btn-info"),
+                                    width="auto",
+                                ),
                             ],
-                            className="mb-3"
+                            className="mb-3",
                         ),
                         
-                        # Forecast Controls
-                        dbc.Label("Number of Forecast Days:", className="text-light"),
-                        dcc.Input(
-                            id="n_days",
-                            type="text",
-                            placeholder="Enter number of forecast days",
-                            className="form-control mb-3"
-                        ),
-                        html.Button("Forecast", className="btn btn-success", id="forecast"),
-                        
-                        # Indicator Section with Dropdown
-                        dbc.Label("Choose an Indicator:", className="text-light mt-4"),  # Added Heading
-                        dcc.Dropdown(
-                            id="indicator-dropdown",
-                            options=[
-                                {"label": "MACD", "value": "MACD"},
-                                {"label": "RSI", "value": "RSI"},
-                                {"label": "Bollinger Bands", "value": "Bollinger"}
+                        # Date Picker and Stock Price Button
+                        dbc.Row(
+                            [
+                                dbc.Col(
+                                    dcc.DatePickerRange(
+                                        id='my-date-picker-range',
+                                        min_date_allowed=dt(1995, 8, 5),
+                                        max_date_allowed=dt.now(),
+                                        initial_visible_month=dt.now(),
+                                        end_date=dt.now().date(),
+                                        className="form-control",
+                                    ),
+                                    width=True,
+                                ),
+                                dbc.Col(
+                                    html.Button("Stock Price", id="stock", n_clicks=0, className="btn btn-primary"),
+                                    width="auto",
+                                ),
                             ],
-                            placeholder="Select an Indicator",
-                            className="form-control mt-3"
+                            className="mb-3",
+                        ),
+
+                        # Forecast Section (Aligned with Input)
+                        dbc.Row(
+                            [
+                                dbc.Col(
+                                    dcc.Input(
+                                        id="n_days",
+                                        type="text",
+                                        placeholder="Enter number of forecast days",
+                                        className="form-control",
+                                    ),
+                                    width=True,
+                                ),
+                                dbc.Col(
+                                    html.Button("Forecast", id="forecast", n_clicks=0, className="btn btn-success"),
+                                    width="auto",
+                                ),
+                            ],
+                            className="mb-3",
+                        ),
+
+                        # Indicators Section (Aligned with Dropdown)
+                        dbc.Row(
+                            [
+                                dbc.Col(
+                                    dcc.Dropdown(
+                                        id="indicator-dropdown",
+                                        options=[
+                                            {"label": "MACD", "value": "MACD"},
+                                            {"label": "RSI", "value": "RSI"},
+                                            {"label": "Bollinger Bands", "value": "Bollinger"},
+                                        ],
+                                        placeholder="Select an Indicator",
+                                        className="form-control",
+                                    ),
+                                    width=True,
+                                ),
+                                dbc.Col(
+                                    html.Button("Indicators", id="indicators", n_clicks=0, className="btn btn-warning"),
+                                    width="auto",
+                                ),
+                            ],
+                            className="mb-3",
                         ),
                     ],
                     width=4,
@@ -192,10 +242,9 @@ app.layout = dbc.Container(
                 # Main Content Area
                 dbc.Col(
                     [
-                        # Header (Logo and Ticker)
+                        # Header (Ticker and Description)
                         dbc.Row(
                             [
-                                dbc.Col(html.Img(id="logo", style={"height": "50px"}), width=2),
                                 dbc.Col(html.P(id="ticker", className="text-light h3"), width=10),
                             ],
                             className="mb-4"
@@ -215,28 +264,32 @@ app.layout = dbc.Container(
                         html.Div(
                             [
                                 html.H2("Latest News", className="text-light"),
-                                html.Ul(id="news-list", className="list-unstyled")
+                                html.Ul(id="news-list", className="list-unstyled"),
                             ],
-                            className="news-section mb-4"
+                            className="news-section mb-4",
                         ),
                         
                         # Sentiment Analysis Gauge
                         html.Div(
                             [
                                 html.H2("News Sentiment Analysis", className="text-light"),
-                                dcc.Graph(id="sentiment-gauge", style={"display": "none"})
+                                dcc.Graph(id="sentiment-gauge", style={"display": "none"}),  # Initially hidden
                             ],
-                            className="sentiment-section"
+                            className="sentiment-section",
                         ),
                     ],
-                    width=8
-                )
+                    width=8,
+                ),
             ]
-        )
+        ),
     ],
     fluid=True,
-    className="bg-secondary text-light p-4"
+    className="bg-secondary text-light p-4",
 )
+
+
+
+
 
 
 
@@ -251,7 +304,6 @@ app.layout = dbc.Container(
 @app.callback(
     [
         Output("description", "children"),
-        Output("logo", "src"),
         Output("ticker", "children"),
         Output("stock", "n_clicks"),
         Output("indicators", "n_clicks"),
@@ -263,7 +315,6 @@ def update_data(stock_code):
     if stock_code is None:
         return (
             "Please enter a legitimate stock code to get details.",
-            "https://melmagazine.com/wp-content/uploads/2019/07/Screen-Shot-2019-07-31-at-5.47.12-PM.png",
             "Stonks",
             None, None, None
         )
@@ -273,11 +324,11 @@ def update_data(stock_code):
             inf = ticker.info
             df = pd.DataFrame().from_dict(inf, orient="index").T
 
-            logo_url = df['logo_url'].values[0] if 'logo_url' in df.columns else "https://melmagazine.com/wp-content/uploads/2019/07/Screen-Shot-2019-07-31-at-5.47.12-PM.png"
+            
             short_name = df['shortName'].values[0] if 'shortName' in df.columns else "Unknown Stock"
             long_business_summary = df['longBusinessSummary'].values[0] if 'longBusinessSummary' in df.columns else "No description available."
 
-            return long_business_summary, logo_url, short_name, None, None, None
+            return long_business_summary, short_name, None, None, None
 
         except Exception as e:
             # Handling any exception and providing feedback to the user
