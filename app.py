@@ -17,6 +17,8 @@ import requests
 from datetime import datetime, timedelta
 from dash import Dash, html, dcc, Input, Output
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
+import dash_bootstrap_components as dbc
+
 
 app = Dash(__name__)
 
@@ -46,9 +48,8 @@ def get_more(df):
 
 app = dash.Dash(
     __name__,
-    external_stylesheets=[
-        "https://fonts.googleapis.com/css2?family=Roboto&display=swap"
-    ])
+    external_stylesheets=[dbc.themes.DARKLY],  # Replace 'DARKLY' with your preferred theme
+)
 server = app.server
 
 def analyze_sentiment(headlines):
@@ -107,99 +108,137 @@ def update_news_and_sentiment_gauge(n_clicks, stock_symbol):
     fig = create_sentiment_gauge(average_sentiment)
 
     # Set the style to display the gauge now
-    return news_elements, fig, {'display': 'block'}
+    if average_sentiment != 0:  # If sentiment analysis is meaningful
+        return news_elements, fig, {"display": "block"}
+    else:  # No valid sentiment to show
+        return news_elements, go.Figure(), {"display": "none"}
+
 # html layout of site
-app.layout = html.Div(
+# Updated app.layout code
+app.layout = dbc.Container(
     [
-        # Left Sidebar (for input controls)
-        html.Div(
+        # Title Row
+        dbc.Row(
+            dbc.Col(html.H1("Stock Dashboard App", className="text-center text-light mb-4"), width=12)
+        ),
+        
+        # Input Controls (Sidebar)
+        dbc.Row(
             [
-                html.P("Welcome to the Stock Dash App!", className="start"),
-
-                # Input stock code and Fetch News button
-                html.Div([
-                    html.Label("Input stock code:"),
-                    dcc.Input(id="stock-input", type="text", placeholder="Enter a stock symbol..."),
-                    html.Button("Fetch News", id="fetch-news", n_clicks=0, style={'margin-left': '5px'}),
-                ], className="form", style={'margin-bottom': '20px'}),
-
-                # Date Picker
-                html.Label("Select Date Range:"),
-                dcc.DatePickerRange(
-                    id='my-date-picker-range',
-                    min_date_allowed=dt(1995, 8, 5),
-                    max_date_allowed=dt.now(),
-                    initial_visible_month=dt.now(),
-                    end_date=dt.now().date(),
-                    style={'margin-bottom': '20px'}
-                ),
-
-                # Stock Data and Indicators Buttons
-                html.Div([
-                    html.Button("Stock Price", className="stock-btn", id="stock"),
-                    html.Button("Indicators", className="indicators-btn", id="indicators", style={'margin-left': '10px'}),
-                ], style={'display': 'flex', 'margin-bottom': '20px'}),
-
-                # Forecast section
-                html.Div([
-                    dcc.Input(id="n_days", type="text", placeholder="Number of forecast days", style={'width': '150px'}),
-                    html.Button("Forecast", className="forecast-btn", id="forecast", style={'margin-left': '10px'}),
-                ], style={'margin-bottom': '20px'}),
-
-                # Technical Indicator Dropdown
-                dcc.Dropdown(
-                    id="indicator-dropdown",
-                    options=[
-                        {"label": "MACD", "value": "MACD"},
-                        {"label": "RSI", "value": "RSI"},
-                        {"label": "Bollinger Bands", "value": "Bollinger"}
+                # Left Sidebar
+                dbc.Col(
+                    [
+                        html.P("Welcome to the Stock Dash App!", className="text-light mb-4"),
+                        
+                        # Input Stock Code
+                        dbc.Label("Input Stock Code:", className="text-light"),
+                        dcc.Input(
+                            id="stock-input",
+                            type="text",
+                            placeholder="Enter a stock symbol...",
+                            className="form-control mb-3"
+                        ),
+                        
+                        # Fetch News Button
+                        html.Button("Fetch News", id="fetch-news", n_clicks=0, className="btn btn-info mb-3"),
+                        
+                        # Date Picker
+                        dbc.Label("Select Date Range:", className="text-light"),
+                        dcc.DatePickerRange(
+                            id='my-date-picker-range',
+                            min_date_allowed=dt(1995, 8, 5),
+                            max_date_allowed=dt.now(),
+                            initial_visible_month=dt.now(),
+                            end_date=dt.now().date(),
+                            className="mb-3"
+                        ),
+                        
+                        # Buttons for Stock Price and Indicators
+                        html.Div(
+                            [
+                                html.Button("Stock Price", className="btn btn-primary mr-2", id="stock"),
+                                html.Button("Indicators", className="btn btn-warning", id="indicators"),
+                            ],
+                            className="mb-3"
+                        ),
+                        
+                        # Forecast Controls
+                        dbc.Label("Number of Forecast Days:", className="text-light"),
+                        dcc.Input(
+                            id="n_days",
+                            type="text",
+                            placeholder="Enter number of forecast days",
+                            className="form-control mb-3"
+                        ),
+                        html.Button("Forecast", className="btn btn-success", id="forecast"),
+                        
+                        # Indicator Section with Dropdown
+                        dbc.Label("Choose an Indicator:", className="text-light mt-4"),  # Added Heading
+                        dcc.Dropdown(
+                            id="indicator-dropdown",
+                            options=[
+                                {"label": "MACD", "value": "MACD"},
+                                {"label": "RSI", "value": "RSI"},
+                                {"label": "Bollinger Bands", "value": "Bollinger"}
+                            ],
+                            placeholder="Select an Indicator",
+                            className="form-control mt-3"
+                        ),
                     ],
-                    placeholder="Select an Indicator",
-                    style={'margin-bottom': '20px'}
+                    width=4,
+                    className="bg-dark p-4 rounded"
                 ),
-            ],
-            className="sidebar",
-            style={'width': '25%', 'padding': '20px', 'background-color': '#f7f7f7'}
-        ),
-
-        # Main Content Area (for displaying outputs)
-        html.Div(
-            [
-                # Header with logo and ticker display
-                html.Div([
-                    html.Img(id="logo", style={'height': '50px'}),
-                    html.P(id="ticker", style={'font-size': '24px', 'margin-top': '10px'}),
-                ], className="header", style={'display': 'flex', 'align-items': 'center', 'margin-bottom': '20px'}),
-
-                # Description section
-                html.Div(id="description", className="description", style={'margin-bottom': '20px'}),
-
-                # Graphs for stock price and indicators
-                html.Div(id="graphs-content", className="graph-section", style={'margin-bottom': '20px'}),
-
-                # Technical indicators or forecast data
-                html.Div(id="main-content", className="indicator-section", style={'margin-bottom': '20px'}),
-                html.Div(id="forecast-content", className="forecast-section", style={'margin-bottom': '20px'}),
-
-                # News and sentiment analysis
-                html.Div(id='news-container', children=[
-                    html.H2('Latest News'),
-                    html.Ul(id='news-list')
-                ], className="news-section", style={'margin-bottom': '20px'}),
-
-                # Updated Sentiment Analysis with gauge, hidden initially
-                html.Div(id='sentiment-output', children=[
-                    html.H2('News Sentiment Analysis'),
-                    dcc.Graph(id='sentiment-gauge', style={'display': 'none'})  # Hide gauge initially
-                ], className="sentiment-section")
-            ],
-            className="main-content",
-            style={'width': '70%', 'padding': '20px'}
-        ),
+                
+                # Main Content Area
+                dbc.Col(
+                    [
+                        # Header (Logo and Ticker)
+                        dbc.Row(
+                            [
+                                dbc.Col(html.Img(id="logo", style={"height": "50px"}), width=2),
+                                dbc.Col(html.P(id="ticker", className="text-light h3"), width=10),
+                            ],
+                            className="mb-4"
+                        ),
+                        
+                        # Description Section
+                        html.Div(id="description", className="text-light mb-4"),
+                        
+                        # Graphs Content
+                        html.Div(id="graphs-content", className="mb-4"),
+                        
+                        # Indicators or Forecast Data
+                        html.Div(id="main-content", className="mb-4"),
+                        html.Div(id="forecast-content", className="mb-4"),
+                        
+                        # News Section
+                        html.Div(
+                            [
+                                html.H2("Latest News", className="text-light"),
+                                html.Ul(id="news-list", className="list-unstyled")
+                            ],
+                            className="news-section mb-4"
+                        ),
+                        
+                        # Sentiment Analysis Gauge
+                        html.Div(
+                            [
+                                html.H2("News Sentiment Analysis", className="text-light"),
+                                dcc.Graph(id="sentiment-gauge", style={"display": "none"})
+                            ],
+                            className="sentiment-section"
+                        ),
+                    ],
+                    width=8
+                )
+            ]
+        )
     ],
-    className="container",
-    style={'display': 'flex', 'justify-content': 'space-between'}
+    fluid=True,
+    className="bg-secondary text-light p-4"
 )
+
+
 
 
 
