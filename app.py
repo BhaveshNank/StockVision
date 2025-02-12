@@ -61,24 +61,35 @@ def analyze_sentiment(headlines):
 def create_sentiment_gauge(score):
     # Ensure the score is valid
     if score is None or not isinstance(score, (int, float)) or not (-1 <= score <= 1):
-        # If invalid, return an empty placeholder figure
         return go.Figure(layout={"xaxis": {"visible": False}, "yaxis": {"visible": False}})
 
-    # Generate the gauge
     gauge = go.Figure(go.Indicator(
-        mode="gauge+number",
+        mode="gauge+number+delta",
         value=score,
-        title={'text': "Sentiment Analysis"},
+        title={'text': "Sentiment Analysis", 'font': {'size': 24, 'color': "white"}},
+        delta={'reference': 0, 'increasing': {'color': "limegreen"}, 'decreasing': {'color': "red"}},
+        number={'font': {'size': 36, 'color': "white"}},
         gauge={
-            'axis': {'range': [-1, 1]},
+            'axis': {'range': [-1, 1], 'tickwidth': 2, 'tickcolor': "white"},
+            'bar': {'color': "royalblue", 'thickness': 0.4},
+            'bgcolor': "rgba(0,0,0,0)",
+            'borderwidth': 2,
+            'bordercolor': "gray",
             'steps': [
-                {'range': [-1, -0.3], 'color': "red"},
-                {'range': [-0.3, 0.3], 'color': "yellow"},
-                {'range': [0.3, 1], 'color': "green"}
+                {'range': [-1, -0.6], 'color': "#ff4d4d"},
+                {'range': [-0.6, -0.3], 'color': "#ff8080"},
+                {'range': [-0.3, 0.3], 'color': "#ffff80"},
+                {'range': [0.3, 0.6], 'color': "#80ff80"},
+                {'range': [0.6, 1], 'color': "#33cc33"}
             ],
-            'bar': {'color': "black"}
+            'threshold': {
+                'line': {'color': "gold", 'width': 4},
+                'thickness': 0.75,
+                'value': score
+            }
         }
     ))
+    gauge.update_layout(paper_bgcolor="rgba(0,0,0,0)", font={'color': "white"})
     return gauge
 
 
