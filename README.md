@@ -1,14 +1,35 @@
-# Visualizing-and-Forecasting-Stocks-using-Dash
-Machine Learning project for forcasting and visuslizing the stocks in a graphical format using the stock code of the company
+## StockVision 📊  
+A Machine Learning & Sentiment Analysis-based Dashboard for analyzing stock trends, forecasting future prices, and monitoring market sentiment.
 
-On clicking submit button
-![Screenshot (3592)](https://user-images.githubusercontent.com/78688840/209056416-cee03b2f-6eed-4437-8ffa-3b52d49a1b1a.png)
+### **Homepage**
+Shows the input section, stock details, graph visualization, latest news and news sentiment analysis.
+![Dashboard Homepage](assets/Homepage.png)
 
-On clicking stock price button
-![Screenshot (3593)](https://user-images.githubusercontent.com/78688840/209056507-3fe39f16-503b-4791-9784-0b2703148345.png)
+### **Stock Details**
+Typing a Stock code will Display the stock information and clicking on the stock price will display the price trends.
+![Stock Details](assets/stock_details.png)
 
-On clicking Indicators buttton
-![Screenshot (3594)](https://user-images.githubusercontent.com/78688840/209056600-58df90f7-fcfe-4b6f-bedd-abe0b01fa47b.png)
+### **Technical Indicators**
+Select RSI, MACD, or Bollinger Bands for stock analysis.
+![Indicators](assets/indicators.png)
 
-On clicking Forecast button
-![Screenshot (3595)](https://user-images.githubusercontent.com/78688840/209056856-49773b2e-534b-4332-b28f-86dc422313d9.png)
+### **Forecasting Stock Prices**
+Predict future stock trends using machine learning. 
+![Stock Forecast](assets/forecast.png)
+
+### **Latest News on Selected Stock**
+Get real-time news headlines related to the stock.
+![Latest News](assets/latest_news.png)
+
+### **Sentiment Analysis Based on News**
+Analyze market sentiment using AI-powered news insights.  
+This feature fetches the latest stock-related news and uses **VADER Sentiment Analysis** (Natural Language Processing) to determine whether the sentiment is **positive, neutral, or negative**.  
+
+#### **📊 Sentiment Gauge**
+- A **gauge meter** visually represents the sentiment score.
+- **Ranges from -1 to 1**:
+  - 🔴 **Negative Sentiment (-1 to -0.3)** → Bearish Market 🐻
+  - 🟡 **Neutral Sentiment (-0.3 to 0.3)** → Uncertain Market ⚖️
+  - 🟢 **Positive Sentiment (0.3 to 1)** → Bullish Market 🐂
+- The gauge dynamically updates based on **real-time news sentiment**.
+![Sentiment Analysis](assets/sentiment_analysis.png)
