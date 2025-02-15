@@ -107,26 +107,26 @@ def update_news_and_sentiment_gauge(n_clicks, stock_symbol):
     if not stock_symbol:
         return [html.Li("Please enter a stock symbol first.")], go.Figure(), {'display': 'none'}
 
-    # Fetch news from the API
+    # Fetching news from the API
     news_items = fetch_news(stock_symbol)
     if not news_items:
         return [html.Li('No news found for this stock symbol.')], go.Figure(), {'display': 'none'}
 
-    # Perform sentiment analysis on headlines
+    # Performs sentiment analysis on the headlines
     headlines = [news['headline'] for news in news_items if news.get('headline')]
     average_sentiment = analyze_sentiment(headlines)
 
-    # Create list of news items with clickable links
+    # Creating list of news items with clickable links
     news_elements = [
         html.Li([
             html.A(news['headline'], href=news['url'], target="_blank")
         ]) for news in news_items if news.get('headline') and news.get('url')
     ]
 
-    # Generate the sentiment gauge
+    # Generates the sentiment gauge
     fig = create_sentiment_gauge(average_sentiment)
 
-    # Toggle visibility based on sentiment score
+    # Toggles visibility based on sentiment score
     if average_sentiment != 0:
         return news_elements, fig, {'display': 'block'}
     else:
@@ -134,7 +134,7 @@ def update_news_and_sentiment_gauge(n_clicks, stock_symbol):
 
 
 
-# html layout of site
+# html layout of the site
 
 app.layout = dbc.Container(
     [
@@ -151,8 +151,6 @@ app.layout = dbc.Container(
                 )
             ),
 
-
-        
         # Input Controls (Sidebar)
         dbc.Row(
             [
@@ -295,8 +293,6 @@ app.layout = dbc.Container(
     className="bg-secondary text-light p-4",
 )
 
-
-
 # callback for company info
 @app.callback(
     [
@@ -325,8 +321,6 @@ def update_data(stock_code):
     except Exception as e:
         return ("Stock data not found. Please check the stock symbol.", "Unknown Stock", None, None)
 
-
-
 @app.callback(
     Output("graphs-content", "children"),
     [Input("stock", "n_clicks"),
@@ -340,19 +334,16 @@ def stock_price(n, start_date, end_date, val):
 
     if val is None:
         return ["Please enter a stock code."]
-    
-    # Fetch stock data logic here
-
 
     try:
-        # Fetch the stock data
+        # Fetching the stock data
         df = yf.download(val, start=start_date, end=end_date) if start_date else yf.download(val)
         
-        # Flatten the MultiIndex if it exists
+        # Flattening the MultiIndex if it exists
         if isinstance(df.columns, pd.MultiIndex):
             df.columns = df.columns.get_level_values(0)  # Extracts the price names, like 'Close', 'Open'
         
-        # Check if required columns are present
+        # Checking if required columns are present
         if 'Close' not in df.columns or 'Open' not in df.columns:
             return ["No data available for the selected stock code or date range."]
         
@@ -364,11 +355,6 @@ def stock_price(n, start_date, end_date, val):
         return [f"Error fetching stock price data: {e}"]
 
     return [dcc.Graph(figure=fig)]
-
-
-# New unified indicator callback
-# Unified indicator callback
-
 
 def calculate_bollinger_bands(df):
     df['MA'] = df['Close'].rolling(window=20).mean()
@@ -387,7 +373,7 @@ def create_bollinger_figure(df, val):
     return fig
 
 def handle_indicator_button(n_clicks, val, start_date, end_date):
-    # Placeholder function to simulate handling of the indicators button
+
     if not val:
         return "Please enter a stock code to get indicators."
     try:
@@ -400,7 +386,6 @@ def handle_indicator_button(n_clicks, val, start_date, end_date):
         return [dcc.Graph(figure=fig)]
     except Exception as e:
         return f"Error processing indicators: {e}"
-
 
 @app.callback(
     Output("main-content", "children"),
@@ -430,7 +415,6 @@ def update_main_content(indicator, val, start_date, end_date):
             return [dcc.Graph(figure=create_bollinger_figure(df, val))]
     else:
         return "Required data columns missing."
-
 
 
 # Example helper functions
