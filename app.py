@@ -144,12 +144,13 @@ app.layout = dbc.Container(
                 dbc.Col(
                     html.H1(
                         "Stock Dashboard App",
-                        className="text-center mb-4",
-                        style={"color": "white"}  # Change text color to white
+                        className="text-left mb-4",  # Change text alignment to left
+                        style={"color": "white", "textAlign": "left"}  # Ensure text alignment
                     ),
                     width=12
                 )
             ),
+
 
         
         # Input Controls (Sidebar)
@@ -238,10 +239,6 @@ app.layout = dbc.Container(
                                     ),
                                     width=True,
                                 ),
-                                dbc.Col(
-                                    html.Button("Indicators", id="indicators", n_clicks=0, className="btn btn-warning"),
-                                    width="auto",
-                                ),
                             ],
                             className="mb-3",
                         ),
@@ -300,55 +297,33 @@ app.layout = dbc.Container(
 
 
 
-
-
-
-
-
-
-
-
-
-
-
 # callback for company info
 @app.callback(
     [
         Output("description", "children"),
         Output("ticker", "children"),
         Output("stock", "n_clicks"),
-        Output("indicators", "n_clicks"),
         Output("forecast", "n_clicks")
     ],
     [Input("stock-input", "value")]
 )
 def update_data(stock_code):
-    if stock_code is None:
-        return (
-            "Please enter a legitimate stock code to get details.",
-            "Stonks",
-            None, None, None
-        )
-    else:
-        try:
-            ticker = yf.Ticker(stock_code)
-            inf = ticker.info
-            df = pd.DataFrame().from_dict(inf, orient="index").T
+    # Prevent update if input is empty or too short to be valid
+    if not stock_code or len(stock_code) < 2:
+        raise PreventUpdate  # This stops the callback from executing
+    
+    try:
+        ticker = yf.Ticker(stock_code)
+        info = ticker.info
 
-            
-            short_name = df['shortName'].values[0] if 'shortName' in df.columns else "Unknown Stock"
-            long_business_summary = df['longBusinessSummary'].values[0] if 'longBusinessSummary' in df.columns else "No description available."
+        # Extract company name and description safely
+        short_name = info.get('shortName', "Unknown Stock")
+        description = info.get('longBusinessSummary', "No description available.")
 
-            return long_business_summary, short_name, None, None, None
+        return description, short_name, None, None
 
-        except Exception as e:
-            # Handling any exception and providing feedback to the user
-            return (
-                "Stock data not found. Please check the stock symbol.",
-                "https://melmagazine.com/wp-content/uploads/2019/07/Screen-Shot-2019-07-31-at-5.47.12-PM.png",
-                "Unknown Stock",
-                None, None, None
-            )
+    except Exception as e:
+        return ("Stock data not found. Please check the stock symbol.", "Unknown Stock", None, None)
 
 
 
@@ -429,43 +404,33 @@ def handle_indicator_button(n_clicks, val, start_date, end_date):
 
 @app.callback(
     Output("main-content", "children"),
-    [Input("indicator-dropdown", "value"), Input("indicators", "n_clicks")],
-    [State("stock-input", "value"), State('my-date-picker-range', 'start_date'), State('my-date-picker-range', 'end_date')]
+    [Input("indicator-dropdown", "value")],  
+    [State("stock-input", "value"), State('my-date-picker-range', 'start_date'), State('my-date-picker-range', 'end_date')]  # Added 'end_date'
 )
-def update_main_content(indicator, n_clicks, val, start_date, end_date):
-    ctx = callback_context
-    if not ctx.triggered:
-        return no_update
-    triggered = ctx.triggered[0]['prop_id'].split('.')[0]
+def update_main_content(indicator, val, start_date, end_date):
+    if not val:
+        return "Please enter a valid stock symbol."
 
-    if triggered == "indicator-dropdown" and indicator:
-        if not val:
-            return "Please enter a valid stock symbol."
+    try:
+        df = yf.download(val, start=start_date, end=end_date)
+        if df.empty:
+            return "No data available for this stock in the selected date range."
+    except Exception as e:
+        return f"Error downloading data: {e}"
 
-        try:
-            df = yf.download(val, start=start_date, end=end_date)
-            if df.empty:
-                return "No data available for this ticker in the selected date range."
-        except Exception as e:
-            return f"Error downloading data: {e}"
+    if 'Close' in df.columns:
+        if indicator == "MACD":
+            df = calculate_macd(df)
+            return [dcc.Graph(figure=create_macd_figure(df, val))]
+        elif indicator == "RSI":
+            df = calculate_rsi(df)
+            return [dcc.Graph(figure=create_rsi_figure(df, val))]
+        elif indicator == "Bollinger":
+            df = calculate_bollinger_bands(df)
+            return [dcc.Graph(figure=create_bollinger_figure(df, val))]
+    else:
+        return "Required data columns missing."
 
-        if 'Close' in df.columns:
-            if indicator == "MACD":
-                df = calculate_macd(df)
-                return [dcc.Graph(figure=create_macd_figure(df, val))]
-            elif indicator == "RSI":
-                df = calculate_rsi(df)
-                return [dcc.Graph(figure=create_rsi_figure(df, val))]
-            elif indicator == "Bollinger":
-                df = calculate_bollinger_bands(df)
-                return [dcc.Graph(figure=create_bollinger_figure(df, val))]
-        else:
-            return "Required data columns missing."
-    elif triggered == "indicators" and n_clicks:
-        # This function should be defined to handle what happens when 'indicators' button is clicked
-        return handle_indicator_button(n_clicks, val, start_date, end_date)
-
-    return no_update
 
 
 # Example helper functions
