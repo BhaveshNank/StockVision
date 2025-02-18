@@ -18,6 +18,7 @@ from datetime import datetime, timedelta
 from dash import Dash, html, dcc, Input, Output
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 import dash_bootstrap_components as dbc
+import os 
 
 
 app = Dash(__name__)
@@ -143,7 +144,7 @@ app.layout = dbc.Container(
             dbc.Row(
                 dbc.Col(
                     html.H1(
-                        "Stock Dashboard App",
+                        "StockVision 📈",
                         className="text-left mb-4",  # Change text alignment to left
                         style={"color": "white", "textAlign": "left"}  # Ensure text alignment
                     ),
@@ -157,7 +158,7 @@ app.layout = dbc.Container(
                 # Left Sidebar
                 dbc.Col(
                     [
-                        html.P("Welcome to the Stock Dash App!", className="text-light mb-4"),
+                        html.P("Welcome to the StockVision Dash App!", className="text-light mb-4"),
                         
                         # Input Stock Code and Fetch News Button
                         dbc.Row(
@@ -294,6 +295,7 @@ app.layout = dbc.Container(
 )
 
 # callback for company info
+
 @app.callback(
     [
         Output("description", "children"),
@@ -304,22 +306,27 @@ app.layout = dbc.Container(
     [Input("stock-input", "value")]
 )
 def update_data(stock_code):
-    # Prevent update if input is empty or too short to be valid
-    if not stock_code or len(stock_code) < 2:
-        raise PreventUpdate  # This stops the callback from executing
-    
+    # ✅ Prevent callback from running at startup
+    if not stock_code or stock_code.strip() == "":
+        raise PreventUpdate  # Stops unnecessary UI updates
+
     try:
         ticker = yf.Ticker(stock_code)
         info = ticker.info
 
-        # Extract company name and description safely
-        short_name = info.get('shortName', "Unknown Stock")
-        description = info.get('longBusinessSummary', "No description available.")
+        # ✅ Ensure valid stock data is retrieved
+        if "shortName" in info and "longBusinessSummary" in info:
+            short_name = info["shortName"]
+            description = info["longBusinessSummary"]
+            return description, short_name, None, None  # ✅ Display stock info
 
-        return description, short_name, None, None
+        else:
+            return "Unknown Stock", "Unknown Stock", None, None  # ✅ Displays "Unknown Stock" when invalid
 
-    except Exception as e:
-        return ("Stock data not found. Please check the stock symbol.", "Unknown Stock", None, None)
+    except Exception:
+        return "Unknown Stock", "Unknown Stock", None, None  # ✅ Displays "Unknown Stock" if an exception occurs
+
+
 
 @app.callback(
     Output("graphs-content", "children"),
@@ -393,9 +400,8 @@ def handle_indicator_button(n_clicks, val, start_date, end_date):
     [State("stock-input", "value"), State('my-date-picker-range', 'start_date'), State('my-date-picker-range', 'end_date')]  # Added 'end_date'
 )
 def update_main_content(indicator, val, start_date, end_date):
-    if not val:
-        return "Please enter a valid stock symbol."
-
+    if not val or val.strip() == "":
+        raise PreventUpdate
     try:
         df = yf.download(val, start=start_date, end=end_date)
         if df.empty:
@@ -488,16 +494,23 @@ def forecast(n, n_days, val):
     return [dcc.Graph(figure=fig)]
 
 def fetch_news(stock_symbol):
-    API_KEY = 'csmkjthr01qn12jeuc5gcsmkjthr01qn12jeuc60'  # Replace 'YOUR_API_KEY' with the actual key
+    API_KEY = os.getenv("FINNHUB_API_KEY")  # Fetch API key securely
+
+    if not API_KEY:
+        raise ValueError("🚨 API Key is missing! Set FINNHUB_API_KEY as an environment variable.")
+
     yesterday = datetime.now() - timedelta(days=1)
     today = datetime.now()
     endpoint = f'https://finnhub.io/api/v1/company-news?symbol={stock_symbol}&from={yesterday:%Y-%m-%d}&to={today:%Y-%m-%d}&token={API_KEY}'
 
     response = requests.get(endpoint)
+    
     if response.status_code == 200:
         return response.json()  # Returns a list of news articles
     else:
+        print(f"⚠️ Error fetching news: {response.status_code} - {response.text}")
         return []
+
     
 
 if __name__ == '__main__':

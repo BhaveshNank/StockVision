@@ -1,16 +1,16 @@
 def prediction(stock, n_days):
-    import dash
-    import dash_core_components as dcc
-    import dash_html_components as html
-    from datetime import datetime as dt
+    # import dash
+    # import dash_core_components as dcc
+    # import dash_html_components as html
+    # from datetime import datetime as dt
     import yfinance as yf
-    from dash.dependencies import Input, Output, State
-    from dash.exceptions import PreventUpdate
+    # from dash.dependencies import Input, Output, State
+    # from dash.exceptions import PreventUpdate
     import pandas as pd
     import plotly.graph_objs as go
     import plotly.express as px
     # model
-    from model import prediction
+    # from model import prediction
     from sklearn.model_selection import train_test_split
     from sklearn.model_selection import GridSearchCV
     import numpy as np
